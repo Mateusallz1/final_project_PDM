@@ -13,7 +13,7 @@ class PostsRepository{
 
   Future<Database> creatingDatabase() async{
     final databasesPath = await getDatabasesPath();
-    final path = join(databasesPath, "assets/database.db");
+    final path = join(databasesPath, 'assets/database.db');
     WidgetsFlutterBinding.ensureInitialized();
     final database = await openDatabase(
       path,
@@ -107,7 +107,7 @@ class PostsRepository{
 
   Future<Database> openingDatabase() async {
     final databasesPath = await getDatabasesPath();
-    final path = join(databasesPath, "assets/database.db");
+    final path = join(databasesPath, 'assets/database.db');
     WidgetsFlutterBinding.ensureInitialized();
     final database = await openDatabase(path);
 
