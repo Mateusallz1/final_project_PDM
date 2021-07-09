@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
@@ -8,8 +9,9 @@ import 'package:sqflite/sqflite.dart';
 
 import 'package:project_pdm/main.dart';
 
-void storage(List<Post> postsList) async {
-  Future<Database> getDatabase() async{
+class PostsRepository{
+
+  Future<Database> creatingDatabase() async{
     final databasesPath = await getDatabasesPath();
     final path = join(databasesPath, "assets/database.db");
     WidgetsFlutterBinding.ensureInitialized();
@@ -23,9 +25,9 @@ void storage(List<Post> postsList) async {
     );
     return database;
   }
-
-  Future<void> insertPost(Post postage) async {
-    Future<Database> database = getDatabase();
+  
+  Future<void> insertPost(PostDatabase postage) async {
+    Future<Database> database = openingDatabase();
 
     final db = await database;
     await db.insert(
@@ -33,14 +35,16 @@ void storage(List<Post> postsList) async {
       postage.postToMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    await db.close();
   }
 
-  Future<List<Post>> postList() async {
-    Future<Database> database = getDatabase();
+  Future<List<Post>> postList(List<Post> postsList) async {
+    Future<Database> database = openingDatabase();
 
     final db = await database;
 
     final List<Map<String, dynamic>> maps = await db.query('posts');
+    await db.close();
 
     return List.generate(maps.length, (i){
       return Post(
@@ -53,7 +57,7 @@ void storage(List<Post> postsList) async {
   }
 
   Future<void> deletePost(int id) async {
-    Future<Database> database = getDatabase();
+    Future<Database> database = openingDatabase();
     
     final db = await database;
     await db.delete(
@@ -61,9 +65,10 @@ void storage(List<Post> postsList) async {
       where: 'id = ?',
       whereArgs: [id],
     );
+    await db.close();
   }
 
-  Future<void> insertComment(Comments comentary) async {
+  /*Future<void> insertComment(Comments comentary) async {
     Future<Database> database = getDatabase();
     
     final db = await database;
@@ -72,9 +77,9 @@ void storage(List<Post> postsList) async {
       comentary.commentToMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-  }
+  }*/
 
-  Future<List<Comments>> commentsList() async {
+  /*Future<List<Comments>> commentsList() async {
     Future<Database> database = getDatabase();
     
     final db = await database;
@@ -87,9 +92,9 @@ void storage(List<Post> postsList) async {
         bodyText: maps[i]['body_text'],
       );
     }); 
-  }
+  }*/
 
-  Future<void> deleteComment(int id) async {
+  /*Future<void> deleteComment(int id) async {
     Future<Database> database = getDatabase();
     
     final db = await database;
@@ -98,14 +103,22 @@ void storage(List<Post> postsList) async {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }*/
+
+  Future<Database> openingDatabase() async {
+    final databasesPath = await getDatabasesPath();
+    final path = join(databasesPath, "assets/database.db");
+    WidgetsFlutterBinding.ensureInitialized();
+    final database = await openDatabase(path);
+
+    return database;
   }
 
-  for (var i in postsList) {
-    i = Post(postId: i.postId,title: i.title, text: i.text, comments: i.comments);
-    await insertPost(i);
+  Future<void> updatingDatabase(List<Post> postsList) async {
+    for (var i in postsList) {
+      String coment = json.encode(i.comments);
+      var j = PostDatabase(i.postId, i.title, i.text, coment);
+      await insertPost(j);
+    }
   }
-
-  Future<Database> database = getDatabase();
-  final db = await database;
-  await db.close();
 }
