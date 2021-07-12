@@ -20,6 +20,7 @@ class PostsRepository{
       onCreate: (db, version) {
         db.execute('CREATE TABLE posts(id INTEGER PRIMARY KEY, title TEXT, text TEXT, comments TEXT)');
         db.execute('CREATE TABLE comments(id INTEGER PRIMARY KEY, body_text TEXT)');
+        db.close();
       },
       version: 1,
     );
