@@ -1,12 +1,18 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:html';
+import 'dart:isolate';
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart'; 
+import 'package:flutter/material.dart';
+import 'package:flutter_downloader/flutter_downloader.dart'; 
 
 import 'package:http/http.dart' as http;
-//import 'package:project_pdm/download/downloadingData.dart';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'package:project_pdm/store/storage.dart';
 
@@ -24,12 +30,32 @@ Future<List<Post>> fetchPosts(http.Client client) async {
   }
 }
 
+Future<List<Post>> fetchComments(http.Client client) async {
+  final commentResponse = 
+    await client.get(Uri.parse('http://192.168.15.173:8080/posts/'));
+  
+  if (commentResponse.statusCode == 200) {
+    return compute(parsePost, commentResponse.body);
+  } else {
+    throw Exception('Failed to load Posts.');
+  }
+}
+
 List<Post> parsePost(String responseBody) {
   final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
   return parsed.map<Post>((json) => Post.fromJson(json)).toList();
 }
 
-void main() {
+List<Comments> parseComment(String commentResponseBody) {
+  final parsed = jsonDecode(commentResponseBody).cast<Map<String, dynamic>>();
+  return parsed.map<Comments>((json) => Comments.fromJson(json)).toList();
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await FlutterDownloader.initialize(
+      debug: true
+      );
   runApp(MyApp());
 }
 
@@ -99,7 +125,7 @@ class PostsList extends StatelessWidget {
   }
 }
 
-class DetailPost extends StatelessWidget {
+class DetailPost extends StatefulWidget {
   final List<dynamic> comments;
   DetailPost({Key? key, required this.comments}) : super(key: key);
 
@@ -120,6 +146,93 @@ class DetailPost extends StatelessWidget {
             ],
           );
         },
+      )
+    );
+  }
+
+  @override
+  _DetailPostState createState() => _DetailPostState(comments);
+}
+
+class _DetailPostState extends State<DetailPost> {
+  int progress = 0;
+  final List<dynamic> comments;
+  _DetailPostState(this.comments);
+
+  ReceivePort _receivePort = ReceivePort();
+  List usableComments = [];
+
+  Future findComments() async {
+    List comments = await fetchComments(http.Client());
+
+    for (var i in comments) {
+      Map unformattedComments = Map();
+      unformattedComments['id'] = i.postId;
+      unformattedComments['title'] = i.title;
+      unformattedComments['text'] = i.text;
+      usableComments.add(unformattedComments);
+    }
+  }
+
+  static dowloadingCallback(id, status, progress) {
+    SendPort? sendPort = IsolateNameServer.lookupPortByName("downloading");
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    findComments();
+
+    IsolateNameServer.registerPortWithName(_receivePort.sendPort, "downloading");
+
+    _receivePort.listen((message) { 
+      setState((){
+        progress = message[2];
+      });
+      print(progress);
+    });
+    FlutterDownloader.registerCallback(dowloadingCallback);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Storage data'),
+      ),
+      body: ListView.builder(
+        itemCount: comments.length,
+        itemBuilder: (context, index) {
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text("$progress", style: TextStyle(fontSize: 40),),
+              SizedBox(height: 60,),
+              FlatButton(
+                child: Text("Start Downloading"),
+                color: Colors.greenAccent,
+                textColor: Colors.white,
+                onPressed: () async {
+                  final status = await Permission.storage.request();
+
+                  if (status.isGranted) {
+                    final externalDir = await getExternalStorageDirectory();
+                    final id = await FlutterDownloader.enqueue(
+                      url: "http://192.168.15.173:8080/post/${usableComments[index].id}/",
+                      savedDir: externalDir!.path,
+                      fileName: "required_data",
+                      showNotification: true,
+                      openFileFromNotification: true,
+                    );
+                  } else {
+                    print('http://192.168.15.173:8080/post/${usableComments[index].id}/');
+                    print("Permission deined");
+                  }
+                },
+              )
+            ]
+          );
+        }
       )
     );
   }
